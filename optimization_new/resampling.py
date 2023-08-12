@@ -1,7 +1,205 @@
 import numpy as np
+import pandas as pd
 from pymoo.algorithms.moo.dnsga2 import DNSGA2
 from pymoo.optimize import minimize
 from concurrent.futures import ProcessPoolExecutor
+
+
+class Resampler:
+    def __init__(self, problem_func, data_args = []):
+        self.problem_func = problem_func
+        self.data_args = data_args
+
+
+        true_opt_obj = self.problem_func(*[arg.true for arg in data_args])
+        true_opt_obj.optimize()
+
+        self.true_opt_obj = true_opt_obj
+        self.n_assets = self.true_opt_obj.weights.shape[1]
+        self.n_metrics = self.true_opt_obj.F.shape[1]
+
+    def resample(self, n_resamples = 100, n_pop = 100, n_gen = 100):
+        # potentially different population and generation parameters than true optimization
+
+        self.n_resamples = n_resamples
+        self.resampled_weights = np.empty(shape = (self.n_resamples, n_pop, self.n_assets))
+        self.resampled_F = np.empty(shape = (self.n_resamples,  n_pop, self.n_metrics))
+
+
+        futures = []
+        with ProcessPoolExecutor as executor:
+            for n in n_resamples:
+                resampled_args = [arg.resample() for arg in self.data_args]
+                problem_obj = self.problem_func(*resampled_args)
+                futures.append(executor.submit(problem_obj.optimize_return, n_pop = n_pop, n_gen = n_gen))
+
+
+        for i, future in enumerate(futures):
+            weights, f = future.result()
+            self.resampled_weights[i] = pad_array(weights, (n_pop, self.n_assets))
+            self.resampled_F[i] = pad_array(f, (n_pop, self.n_metrics))
+
+
+
+
+class Resample_Wrapper:
+    def __init__(self, data):
+        self.true_data = data
+
+    def resample(self):
+        raise NotImplementedError
+
+class Constant(Resample_Wrapper):
+    def __init__(self, data):
+        self.true_data = data
+
+    def resample(self):
+        return self.true_data
+
+
+class WindowResampler(Resample_Wrapper):
+    def __init__(self, data, min_periods = None, gap_size = 1, ascending = True):
+        # X is np array or dataframe indexed by time across first dimension
+
+        self.T = data.shape[0]
+        self.min_periods = min_periods
+        self.gap_size = gap_size
+        self.ascending = ascending
+        self.window_indices = []
+
+        self.calculated_n_resamples = len([_ for _ in self.resample_generator()])
+        self.gen = self.resample_generator()
+
+        super().__init__(data)
+
+    def resample_generator(self):
+        raise NotImplementedError
+
+    def resample(self):
+        return next(self.gen)
+
+    def get_start_end(self):
+        start = self.min_periods if self.ascending else self.T
+        end = self.T if self.ascending else self.min_periods
+        gap_size = self.gap_size if self.ascending else -self.gap_size
+
+        return start, end, gap_size
+
+
+
+class RollingWindow(WindowResampler):
+    def __init__(self, data, window = 12, min_periods = None, gap_size = 1, ascending = True):
+        # assume data is pandas dataframe
+
+        self.window = window
+
+        super().__init__(data, min_periods, gap_size, ascending)
+
+    def resample_generator(self):
+
+        # flipping to move descendingly through the data
+        start, end, gap_size = self.get_start_end()
+
+        # setting to empty list again in case this gets called twice
+        self.window_indices = []
+
+        for i in range(start, end, gap_size):
+            j = i - self.window
+
+
+            # assumes argument is dataframe which needs to be abstracted
+            self.window_indices.append([j, i])
+            yield self.true_data.iloc[j:i]
+
+
+class ExpandingWindow(WindowResampler):
+    def __init__(self, data, min_periods = None, gap_size = 1, ascending = True):
+        # assume X is pandas dataframe
+        super().__init__(data, min_periods, gap_size, ascending)
+
+    def resample_generator(self):
+
+        # flipping to move descendingly through the data
+        start, end, gap_size = self.get_start_end()
+
+        # setting to empty list again in case this gets called twice
+        self.window_indices = []
+
+        for i in range(start, end, gap_size):
+            self.window_indices.append([start, i])
+            yield self.true_data[start:i]
+
+
+class StochasticResampler(Resample_Wrapper):
+    def __init__(self, seed = None):
+        self.gen = np.random.default_rng(seed = seed)
+
+
+class BootstrapResampler(StochasticResampler):
+    def __init__(self, data, seed = None):
+        self.T = data.shape[0]
+
+        super().__init__(data, seed)
+
+
+class IIDBootstrap(BootstrapResampler):
+    def __init__(self, data, seed = None):
+        super().__init__(data, seed)
+
+    def resample(self):
+        indices = self.gen.integers(0, self.T, self.T)
+        return self.true_data[indices]
+
+class BlockBootstrap(BootstrapResampler):
+    def __init__(self, data, avg_block_size = 4, seed = None):
+        self.avg_block_size = avg_block_size
+        super().__init__(data, seed)
+
+    def resample(self):
+        indices = []
+
+        # forward wrapping
+        while len(indices) < self.T:
+            idx = self.gen.integers(0, self.T)
+            block_size = self.gen.geometric(1 / self.avg_block_size)
+            indices.extend([(idx + x) % self.T for x in range(block_size)])
+
+        indices = indices[:self.T]
+        return self.true_data[indices]
+
+class WhiteNoise(StochasticResampler):
+    def __init__(self, data, seed = None):
+        super().__init__(data, seed)
+
+class GuassianNoise(WhiteNoise):
+    def __init__(self, data, sigma, mu = 0, seed = None):
+        self.mu = mu
+        self.sigma = sigma
+
+        super().__init__(data, seed)
+
+    def resample(self):
+        return self.true_data + self.gen.normal(self.mu, self.sigma, self.true_data.shape)
+
+
+class CustomNoiseDist(WhiteNoise):
+    def __init__(self, data, dist_func, *dist_args, seed = None):
+        self.dist_func = dist_func
+        self.dist_args = dist_args
+
+        super().__init__(data, seed)
+
+    def resample(self):
+        return self.true_data + self.dist_func(self.gen, *self.dist_args)
+
+
+
+
+
+
+
+
+
 
 
 
@@ -75,6 +273,8 @@ class WindowResampler(BaseResampler):
     def resample(self, n_pop = 100, n_gen = 100):
         self.n_resamples = len([x for x in self.get_resample_args()])
         super().resample(n_resamples = self.n_resamples, n_pop = n_pop, n_gen = n_gen)
+
+
         
 
 # handle min periods consistently? should I subtract min_periods from the end if not ascending?

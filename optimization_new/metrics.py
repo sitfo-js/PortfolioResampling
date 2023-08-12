@@ -42,7 +42,7 @@ class Volatility(Metric):
         if annualization == "Sqrt":
             self.ann_func = annualize_var
         else:
-            self.ann_func = lambda x, y: np.sqrt(x)
+            self.ann_func = lambda x, _: np.sqrt(x)
             
         
     def evaluate(self, returns, weights):
