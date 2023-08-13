@@ -221,7 +221,8 @@ class Skewness(Metric):
     def post_process(self, results):
         return -1 * results
     
-    
+
+# merge bull and bear beta into single metric Beta, which takes condition as keyword argument
 class BearBeta(Metric):
     def __init__(self, returns, risk_index, thresh = 0, units = "Return", bear_betas = None):
         self.uses_returns = False

@@ -22,6 +22,7 @@ class BasePortfolioProblem(Problem):
         self.constraint_obj = constraint_obj
         self.should_weight_returns = any([m.uses_returns for m in metrics])
         self.metrics = metrics
+        self.metric_names = [m.name for m in metrics]
         
     def _evaluate(self, weights, out, *args, **kwargs):
         out["F"] = self._evaluate_return(weights)
@@ -45,12 +46,42 @@ class BasePortfolioProblem(Problem):
         
         # extracts and evaluated metrics and post processes
         self.weights, self.F = self.post_process(*res.opt.get("X", "F"))
-        
+
+    def _evaluate_return(self, weights):
+        raise NotImplementedError
+
     def optimize_return(self, *args, **kwargs):
+        # private method
+        # used inside parrelellization
+
         self.optimize(*args, **kwargs)
         return self.weights, self.F
-    
-    
+        
+    def re_evaluate_weights_single(self, weights):
+        # wrapper around evaluate_return that handles 1d array of weights
+        # evalauting a single portfolio choice
+
+        # reshaping to be 2d
+        weights = weights.reshape(1, -1)
+
+        # re-valuating weight averages
+        F = np.array(self._evaluate_return(weights)).T
+
+        # post processed weights and metrics
+        # ensuring that constraints are satisfied
+        weights, F = self.post_process(weights, F)
+
+        # returning weights to 1d
+        return weights[0], F
+
+    def re_evaluate_weights_vector(self, weights):
+        F = np.array(self._evaluate_return(weights)).T
+        weights, F = self.post_process(weights, F)
+
+        return weights, F
+
+
+
     
 
 
@@ -61,15 +92,21 @@ class PortfolioProblem(BasePortfolioProblem):
     def __init__(self, returns, metrics, constraint_obj = constraints.LongOnly(), **kwargs):
         super().__init__(n_var=returns.shape[1], n_obj=len(metrics), 
                          metrics=metrics, constraint_obj = constraint_obj, **kwargs)
-        
+
+        # returns is a pandas DataFrame
+
         self.returns = returns.values
+        self.column_names = returns.columns
         
     
     def _evaluate_return(self, weights):
+
+        # enforces constraints before metrics can see
         weights = self.constraint_obj.enforce(weights)
         
-        ret = self.returns @ weights.T if self.should_weight_returns else None
-        
+        ret = (self.returns @ weights.T) if self.should_weight_returns else None
+
+        # pymoo needs a list for some reason
         return [m.evaluate(ret, weights) for m in self.metrics]
 
 
@@ -81,15 +118,21 @@ class SubPortfolioProblem(BasePortfolioProblem):
     def __init__(self, inner_returns, outer_returns, inner_w, metrics, constraint_obj = constraints.LongOnly(), **kwargs):
         super().__init__(n_var=inner_returns.shape[1], n_obj=len(metrics), 
                          metrics=metrics, **kwargs)
-        
+
+        # inner returns and outer returns need to be pd.DataFrames
+
         self.inner_returns = inner_returns.values
+        self.column_names = inner_returns.columns
         self.outer_returns = (outer_returns.values * (1 - inner_w)).reshape(-1, 1)
         self.inner_w = inner_w
 
 
     def _evaluate_return(self, weights):
+
+        # enforces constraints before metrics can see
         weights = self.constraint_obj.enforce(weights)
-      
+
+        # clean up code here
         weights_tot = self.inner_w * weights
         ret_tot = (self.inner_returns @ weights_tot.T + self.outer_returns) if self.should_weight_returns else None
         
@@ -107,11 +150,14 @@ class MixedPortfolioProblem(BasePortfolioProblem):
                          metrics=metrics, **kwargs)
         
         self.inner_returns = inner_returns.values
+        self.column_names = inner_returns.columns
         self.outer_returns = (outer_returns.values * (1 - inner_w)).reshape(-1, 1)
         self.inner_w = inner_w
         self.metric_levels = metric_levels
         
     def _evaluate_return(self, weights):
+
+        # enforces constraints before metrics can see
             
         # rename weights and inner weights, can be confusing
         weights_sub = self.constraint_obj.enforce(weights)

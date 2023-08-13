@@ -4,6 +4,35 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 from . import resampling
+from . import utils
+from . import problem
+
+
+
+def plot_portfolio_mixes_2d(model_obj):
+
+    # model obj could either be PortfolioProblem or Resampler
+    if isinstance(model_obj, problem.BasePortfolioProblem):
+        weights = model_obj.weights
+        metrics = model_obj.F
+        resample = False
+    elif isinstance(model_obj, resampling.BaseResampler):
+        weights, metrics = model_obj.get_aggregate_frontier()
+        resample = True
+
+
+    weights, metrics = utils.sort_X_F_2d(weights, metrics)
+    weights_df = pd.DataFrame(weights, index = metrics[:, 0], columns = model_obj.column_names)
+
+    f, ax = plt.subplots()
+    weights_df.plot.area(ax = ax)
+
+    ax.legend(bbox_to_anchor = (1, 1))
+    ax.set_title("Weight Mixes Across Efficient Frontier" + ("" if not resample else " (Resampled)"))
+    ax.set_ylabel("Weight")
+    ax.set_xlabel(model_obj.metric_names[0])
+
+    plt.show()
 
 
 
@@ -285,7 +314,7 @@ def visualize_dispersion_scatter(model_results, col, show_true = True):
         true_X = model_results["True X"]
         true_F = model_results["True F"]
         
-        sorted_X, sorted_F = sort_X_F_2d(true_X, true_F)
+        sorted_X, sorted_F = utils.sort_X_F_2d(true_X, true_F)
         ax.plot(sorted_F[:, 0], sorted_X[:, num], color = "tab:red", label = "True Weights", lw = 3)
         
     ax.legend()
@@ -294,20 +323,7 @@ def visualize_dispersion_scatter(model_results, col, show_true = True):
     ax.set_ylim(0, 1)
     ax.set_title(col)
     
-def sort_X_F_3d(all_X, all_F, sort_col = 0):
-    sorted_F = np.empty_like(all_F)
-    sorted_X = np.empty_like(all_X)
 
-    for i in range(all_F.shape[0]):
-        sort_indices = np.argsort(all_F[i][:, sort_col])
-        sorted_F[i] = all_F[i][sort_indices]
-        sorted_X[i] = all_X[i][sort_indices]
-        
-    return sorted_X, sorted_X
-
-def sort_X_F_2d(X, F, sort_col = 0):
-    sort_indices = np.argsort(F[:, sort_col])
-    return X[sort_indices], F[sort_indices]
 
 def visualize_dispersion_scatter(model_results, col, show_true = True):
     num = model_results["Column Names"].to_list().index(col)
@@ -326,7 +342,7 @@ def visualize_dispersion_scatter(model_results, col, show_true = True):
         true_X = model_results["True Weights"]
         true_F = model_results["True F"]
         
-        sorted_X, sorted_F = sort_X_F_2d(true_X, true_F)
+        sorted_X, sorted_F = utils.sort_X_F_2d(true_X, true_F)
         ax.plot(sorted_F[:, 0], sorted_X[:, num], color = "tab:red", label = "True Weights", lw = 3)
         
     ax.legend()
@@ -336,26 +352,7 @@ def visualize_dispersion_scatter(model_results, col, show_true = True):
     ax.set_title(col)
     
 
-def plot_portfolio_mixes_2d(model_results, cluster_results = None, resample = False):
-    
-    if resample:
-        weights, metrics = resampling.get_resampled_frontier_cluster(model_results, cluster_results)
-    else:
-        weights = model_results["True Weights"]
-        metrics = model_results["True F"]
-    
-    weights, metrics = sort_X_F_2d(weights, metrics)
-    weights_df = pd.DataFrame(weights, index = metrics[:, 0], columns = model_results["Column Names"])
-    
-    f, ax = plt.subplots()
-    weights_df.plot.area(ax = ax)
 
-    ax.legend(bbox_to_anchor = (1, 1))
-    ax.set_title("Weight Mixes Across Efficient Frontier" + ("" if not resample else " (Resampled)"))
-    ax.set_ylabel("Weight")
-    ax.set_xlabel(model_results["Metric Names"][0])
-    
-    plt.show()
 
     
 
