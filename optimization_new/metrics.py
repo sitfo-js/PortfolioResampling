@@ -245,13 +245,12 @@ class Beta(Metric):
 
     # add check that returns and risk index are the same size
     # betas should be pd.Series
-    # direction indicates whether you want to maximize or minimize beta, default is minimize
-    def __init__(self, betas = None, returns = None, risk_index = None, condition_func = None, direction = -1):
+    def __init__(self, betas = None, returns = None, risk_index = None, condition_func = None, minimize = True):
 
         self.uses_returns = False
         self.is_pct = False
         self.name = "Beta" if condition_func is None else "Conditional Beta"
-        self.direction = direction
+        self.minimize = minimize
 
 
         if betas is not None:
@@ -276,11 +275,10 @@ class Beta(Metric):
 
         # linear with respect to the weights
         # (n x k) @ (k x 1)
-        return weights @ self.betas.T
+        return (1 if self.minimize else -1) * weights @ self.betas.T
 
     def post_process(self, results):
-        # flipping twice, because flipping once is for default maximization
-        return -1 * self.direction * results
+        return (1 if self.minimize else -1) * results
 
 
 
@@ -299,15 +297,12 @@ class TrackingError(Annualizable_Metric):
 
 
 
-
-
-
-    
+# generalize to greater than?
 class ProbLessThan(Metric):
     def __init__(self, thresh = 0):
         self.uses_returns = True
         self.is_pct = True
-        self.name = "Prob of Month < {}".format(thresh)
+        self.name = "Prob < {}".format(thresh)
         self.thresh = thresh
 
     def evaluate(self, returns, weights):
