@@ -1,4 +1,4 @@
-# change Beta metric
+
 # check for 2d rank resampler
 # clean up code mixed / sub portfolio problems
 # public / private methods
@@ -10,3 +10,6 @@
 
 # pass args to initial true optimization
 # should it just accept an already optimized object?
+
+
+# should metrics take pandas Series or DataFrame??
