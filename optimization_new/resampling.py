@@ -105,7 +105,6 @@ class ClusterResampler(BaseResampler):
 
         self.cluster_model = None
         self.true_labels = np.empty(self.true_opt_obj.F.shape[0])
-        self.resampled_labels = np.empty((self.resampled_F.shape[0], self.resampled_F.shape[1]))
 
         # 1 sleeve holds true, other holds resampled
         # self.avg_w_cluster = np.empty((2, n_clusters, self.n_assets))
@@ -113,6 +112,8 @@ class ClusterResampler(BaseResampler):
 
     def fit_cluster(self):
         # private method
+        print("Hello 1")
+        self.resampled_labels = np.empty((self.resampled_F.shape[0], self.resampled_F.shape[1]))
 
         true_F = self.true_opt_obj.F
         true_F_no_nan = utils.drop_nan_rows(true_F)
@@ -132,7 +133,7 @@ class ClusterResampler(BaseResampler):
 
     def predict_resampled_labels(self):
         # private method
-
+        print("Hello 2")
         for i in range(self.n_resamples):
 
             # looping through n_resamples
@@ -140,6 +141,7 @@ class ClusterResampler(BaseResampler):
             iteration_F = utils.drop_nan_rows(self.resampled_F[i])
 
             predicted_labels = self.cluster_model.predict(iteration_F)
+            print(predicted_labels)
 
             # saving, padding to fit original shape
             self.resampled_labels[i] = utils.pad_array(predicted_labels, (self.resampled_F.shape[1], 1)).squeeze()

@@ -3,6 +3,7 @@ from pymoo.optimize import minimize
 from pymoo.algorithms.moo.dnsga2 import DNSGA2
 import numpy as np
 from . import constraints
+from . import utils
 
 
 # for constraints, still need to ensure that constrained column is in the first position
@@ -45,7 +46,9 @@ class BasePortfolioProblem(Problem):
         res = minimize(self, algo_instance, ("n_gen", n_gen), seed = seed, verbose=False)
         
         # extracts and evaluated metrics and post processes
-        self.weights, self.F = self.post_process(*res.opt.get("X", "F"))
+        weights, F = self.post_process(*res.opt.get("X", "F"))
+        self.weights = utils.pad_array(weights, (n_pop, weights.shape[1]))
+        self.F = utils.pad_array(F, (n_pop, F.shape[1]))
 
     def _evaluate_return(self, weights):
         raise NotImplementedError

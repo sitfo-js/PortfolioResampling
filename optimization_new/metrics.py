@@ -74,7 +74,7 @@ class Annualizable_Metric(Metric):
     
 class Volatility(Annualizable_Metric):
     
-    def __init__(self, cov_matrix, annualization = "Sqrt", periodicity = 12):
+    def __init__(self, cov_matrix, periodicity = 12):
         
         self.uses_returns = False
         self.is_pct = True
@@ -128,7 +128,7 @@ class DownsideDeviation(Annualizable_Metric):
     
 # Return Measures
     
-class AvgGeoReturn(Metric):
+class AvgGeoReturn(Annualizable_Metric):
     def __init__(self, ann_kind = "Compound", periodicity = 12):
         self.uses_returns = True
         self.is_pct = True
@@ -146,7 +146,7 @@ class AvgGeoReturn(Metric):
     
 
     
-class AvgArithReturn(Metric):
+class AvgArithReturn(Annualizable_Metric):
     
     def __init__(self, mu, ann_kind = "Compound", periodicity = 12):
         self.mu = mu

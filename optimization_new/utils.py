@@ -23,8 +23,9 @@ def drop_nan_rows(arr):
 
 def pad_array(arr, target_shape):
     if len(arr.shape) == 1:  # if it's 1D, reshape to 2D
-        array = arr.reshape(-1, 1)
+        arr = arr.reshape(-1, 1)
 
     padded_array = np.full(target_shape, np.nan)
+    print(padded_array, target_shape)
     padded_array[:arr.shape[0], :arr.shape[1]] = arr
     return padded_array
