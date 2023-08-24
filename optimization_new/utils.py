@@ -26,6 +26,6 @@ def pad_array(arr, target_shape):
         arr = arr.reshape(-1, 1)
 
     padded_array = np.full(target_shape, np.nan)
-    print(padded_array, target_shape)
+    #print(padded_array, target_shape)
     padded_array[:arr.shape[0], :arr.shape[1]] = arr
     return padded_array

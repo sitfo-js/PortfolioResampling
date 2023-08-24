@@ -112,7 +112,7 @@ class ClusterResampler(BaseResampler):
 
     def fit_cluster(self):
         # private method
-        print("Hello 1")
+        #print("Hello 1")
         self.resampled_labels = np.empty((self.resampled_F.shape[0], self.resampled_F.shape[1]))
 
         true_F = self.true_opt_obj.F
@@ -133,7 +133,6 @@ class ClusterResampler(BaseResampler):
 
     def predict_resampled_labels(self):
         # private method
-        print("Hello 2")
         for i in range(self.n_resamples):
 
             # looping through n_resamples
@@ -141,7 +140,7 @@ class ClusterResampler(BaseResampler):
             iteration_F = utils.drop_nan_rows(self.resampled_F[i])
 
             predicted_labels = self.cluster_model.predict(iteration_F)
-            print(predicted_labels)
+            #print(predicted_labels)
 
             # saving, padding to fit original shape
             self.resampled_labels[i] = utils.pad_array(predicted_labels, (self.resampled_F.shape[1], 1)).squeeze()
@@ -159,13 +158,18 @@ class ClusterResampler(BaseResampler):
         for j in range(self.n_clusters):
             indices_with_labels = self.resampled_labels == j
 
-            # doesn't need nanmean because nan rows won't be labelled
-            avg_weights = self.resampled_weights[indices_with_labels].mean(axis = 0)
+
+            weights_slice = self.resampled_weights[indices_with_labels]
+            if weights_slice.shape[0] == 0:
+                avg_weights = np.full((self.n_assets,), np.nan)
+            else:
+                # doesn't need nanmean because nan rows won't be labelled
+                avg_weights = weights_slice.mean(axis = 0)
 
             # can't simply avg F--we need to re-evalaute it in the true space
             # also, we need to put the average weights through processing to ensure constraints are satisfied
 
-            avg_w, eval_F = self.true_opt_obj._evaluate_return_single(avg_weights)
+            avg_w, eval_F = self.true_opt_obj.re_evaluate_weights_single(avg_weights)
             self.aggregated_weights[j] = avg_weights
             self.aggregated_F[j] = eval_F
 
