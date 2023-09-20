@@ -1,5 +1,5 @@
 import numpy as np
-#from .. import ced
+from .. import ced
 from scipy import stats
 
 # all measures are vectorized to work with Problem (rather than Elementwise Problem)
@@ -14,22 +14,6 @@ from scipy import stats
 class Metric:
      def post_process(self, results):
          return results
-
-
-#class CED(Metric):
-#    def __init__(self, window = 12, alpha = 0.95):
-#        self.uses_returns = True
-#
-#        self.window = window
-#        self.alpha = alpha
-#        self.name = "{}M {}% CED".format(window, int(100 * alpha))
-#        self.is_pct = True
-
-
-#    def evaluate(self, returns, weights):
-#        return np.apply_along_axis(ced.calculate_ced_fast, 0, returns,
-#                                   window = self.window, alpha = self.alpha, is_arr = True)
-
 
 
 class Annualizable_Metric(Metric):
@@ -122,7 +106,20 @@ class DownsideDeviation(Annualizable_Metric):
         # 0s are included in the standard deviation
         return np.where(returns < 0, 0, returns).std(axis = 0)
 
-        
+
+class CED(Metric):
+    def __init__(self, window = 12, alpha = 0.95):
+        self.uses_returns = True
+
+        self.window = window
+        self.alpha = alpha
+        self.name = "{}M {}% CED".format(window, int(100 * alpha))
+        self.is_pct = True
+
+
+    def evaluate(self, returns, weights):
+        return np.apply_along_axis(ced.calculate_ced, 0, returns,
+                                   window = self.window, alpha = self.alpha)        
 
     
     
@@ -184,6 +181,7 @@ class L2_Reg(Metric):
     
 class Risk_Equality(Metric):
     def __init__(self, cov_matrix, handle_neg_contr = "ignore"):
+        
         self.uses_returns = False
         self.is_pct = False
         self.cov_matrix = cov_matrix
@@ -225,20 +223,22 @@ class Liquidity(Metric):
     def post_process(self, results):
         return -1 * results
     
+   
     
+# use?
     
-class Skewness(Metric):
-    def __init__(self):
-        self.uses_returns = True
-        self.is_pct = False
-        self.name = "Skew"
+#class Skewness(Metric):
+#    def __init__(self):
+#        self.uses_returns = True
+#        self.is_pct = False
+#        self.name = "Skew"
     
-    def evaluate(self, returns, weights):
+#    def evaluate(self, returns, weights):
         # maximizing skew
-        return -1 * stats.skew(returns, axis = 0)
+#        return -1 * stats.skew(returns, axis = 0)
     
-    def post_process(self, results):
-        return -1 * results
+#    def post_process(self, results):
+#        return -1 * results
     
 
 class Beta(Metric):
@@ -260,9 +260,9 @@ class Beta(Metric):
 
             if condition_func is not None:
 
-                filter = condition_func(risk_index)
-                returns = returns[filter]
-                risk_index = risk_index[filter]
+                bool_filter = condition_func(risk_index)
+                returns = returns[bool_filter]
+                risk_index = risk_index[bool_filter]
 
             self.betas = returns.apply(self.beta_func, risk_index = risk_index, axis = 0).values
 

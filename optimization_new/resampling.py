@@ -6,12 +6,14 @@ from concurrent.futures import ProcessPoolExecutor
 from sklearn.cluster import KMeans
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from scipy import stats
 
 from . import problem
 from . import utils
 
 # expand this to handle different ways of aggregating frontier
 # redesign to take list or single object
+# this terminology is confusing
 
 class BaseResampler:
     def __init__(self, problem_func, data_args):
@@ -344,6 +346,16 @@ class GuassianNoise(WhiteNoise):
     def resample(self):
         return self.true_data + self.gen.normal(0, self.sigma, self.true_data.shape)
 
+class WishartNoise(WhiteNoise):
+    # used for random resampling of covariance matrics
+    
+    def __init__(self, cov, degf, seed = None):
+        self.degf = degf
+        
+        super().__init__(cov, seed)
+        
+    def resample(self):
+        return stats.wishart.rvs(df=self.degf, scale=self.true_data, random_state = self.gen)
 
 class CustomNoiseDist(WhiteNoise):
     def __init__(self, data, dist_func, *dist_args, seed = None):
